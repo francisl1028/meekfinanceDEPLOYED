@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEEK — AI Finance Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --bg:#0a0a0a;
+  --bg-panel:#131313;
+  --bg-elevated:#1a1a1a;
+  --line:#272522;
+  --line-soft:#1d1b18;
+  --cream:#f1e7d3;
+  --cream-dim:#9c9284;
+  --cream-faint:#6b6459;
+  --accent:#d6543a;
+  --accent-soft:rgba(214,84,58,.14);
+  --green:#8fb37a;
+  --green-soft:rgba(143,179,122,.14);
+  --red:#c9564f;
+  --red-soft:rgba(201,86,79,.14);
+  --radius:3px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--cream);
+  font-family:'Inter',sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+::selection{background:var(--accent);color:#fff;}
+.mono{font-family:'Space Mono',monospace;}
+.eyebrow{
+  font-family:'Space Mono',monospace;
+  font-size:11px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--cream-dim);
+}
+.display{font-family:'Anton',sans-serif;font-weight:400;letter-spacing:.01em;}
+button{font-family:inherit;cursor:pointer;}
+input,select{font-family:inherit;}
+a{color:inherit;}
+.tabular{font-variant-numeric:tabular-nums;}
+
+/* dot texture overlay */
+.dots{
+  position:absolute;inset:0;
+  background-image:radial-gradient(circle, rgba(241,231,211,.10) 1px, transparent 1.4px);
+  background-size:6px 6px;
+  pointer-events:none;
+}
+
+/* ============================= LAYOUT ============================= */
+#app{position:relative;min-height:100vh;}
+.screen{display:none;}
+.screen.active{display:block;animation:fadeUp .5s var(--ease) both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+
+/* ============================= AUTH SCREEN ============================= */
+#screen-auth{display:none;min-height:100vh;flex-direction:column;justify-content:space-between;position:relative;}
+#screen-auth.active{display:flex;}
+.auth-nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:26px 40px;border-bottom:1px solid var(--line);
+  position:relative;z-index:2;
+}
+.logo-mark{display:flex;align-items:center;gap:10px;}
+.logo-mark .dot{width:8px;height:8px;background:var(--accent);border-radius:50%;}
+.logo-mark span{font-family:'Space Mono',monospace;font-weight:700;letter-spacing:.12em;font-size:14px;}
+.auth-hero{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:60px 24px 20px;position:relative;
+}
+.auth-hero h1{
+  font-family:'Anton',sans-serif;
+  font-size:clamp(56px,12vw,150px);
+  line-height:.92;
+  margin:0;
+  color:var(--cream);
+  letter-spacing:.01em;
+  position:relative;
+  animation:riseIn 1s var(--ease) both;
+}
+@keyframes riseIn{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:translateY(0);}}
+.auth-hero .tag{
+  margin-top:18px;max-width:520px;color:var(--cream-dim);font-size:15px;line-height:1.6;
+  animation:riseIn 1s var(--ease) .15s both;
+}
+.auth-hero .tag b{color:var(--cream);font-weight:600;}
+
+/* skyline made of bars — signature element */
+.skyline{
+  width:100%;max-width:900px;height:120px;margin:36px auto 0;
+  display:flex;align-items:flex-end;gap:5px;padding:0 20px;
+  animation:riseIn 1s var(--ease) .25s both;
+}
+.skyline i{
+  display:block;flex:1;background:linear-gradient(180deg,var(--cream) 0%,rgba(241,231,211,.55) 100%);
+  border-radius:1px 1px 0 0;
+  animation:tick 3.2s ease-in-out infinite;
+  animation-delay:calc(var(--d) * 1s);
+  transform-origin:bottom;
+}
+@keyframes tick{
+  0%,100%{transform:scaleY(1);opacity:.85;}
+  50%{transform:scaleY(1.12);opacity:1;}
+}
+
+.auth-forms{
+  width:100%;max-width:380px;margin:30px auto 60px;padding:0 24px;
+  position:relative;z-index:2;
+  animation:riseIn 1s var(--ease) .3s both;
+}
+.auth-card{
+  background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:28px;
+}
+.field{margin-bottom:16px;}
+.field label{display:block;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-dim);margin-bottom:8px;}
+.field input{
+  width:100%;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);
+  padding:12px 13px;border-radius:var(--radius);font-size:14px;outline:none;
+  transition:border-color .2s var(--ease), background .2s var(--ease);
+}
+.field input:focus{border-color:var(--accent);background:#1e1c19;}
+.btn{
+  width:100%;padding:13px 18px;border-radius:var(--radius);border:1px solid transparent;
+  font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  font-weight:700;transition:transform .15s var(--ease), background .2s var(--ease), border-color .2s;
+}
+.btn:active{transform:scale(.98);}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#e2624a;}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--cream);}
+.btn-ghost:hover{border-color:var(--cream-dim);}
+.auth-switch{text-align:center;margin-top:16px;font-size:13px;color:var(--cream-dim);}
+.auth-switch button{background:none;border:none;color:var(--accent);font-size:13px;padding:0;text-decoration:underline;text-underline-offset:3px;}
+.auth-error{
+  background:var(--red-soft);border:1px solid rgba(201,86,79,.4);color:#e8a29d;
+  padding:10px 12px;border-radius:var(--radius);font-size:12px;margin-bottom:14px;display:none;
+}
+
+/* ============================= APP SHELL ============================= */
+#screen-app{display:none;}
+#screen-app.active{display:flex;min-height:100vh;}
+.sidebar{
+  width:236px;flex-shrink:0;background:var(--bg-panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:24px 0;position:sticky;top:0;height:100vh;
+}
+.sidebar .logo-mark{padding:0 24px 26px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+.navlist{list-style:none;margin:0;padding:0 12px;flex:1;}
+.navlist li{margin-bottom:2px;}
+.navlist button{
+  width:100%;text-align:left;display:flex;align-items:center;gap:10px;
+  background:none;border:none;color:var(--cream-dim);padding:11px 12px;border-radius:var(--radius);
+  font-size:13.5px;font-weight:500;transition:background .18s var(--ease), color .18s var(--ease);
+  position:relative;
+}
+.navlist button .ic{width:16px;text-align:center;font-family:'Space Mono',monospace;font-size:12px;opacity:.8;}
+.navlist button:hover{background:var(--bg-elevated);color:var(--cream);}
+.navlist button.active{background:var(--accent-soft);color:var(--cream);}
+.navlist button.active::before{
+  content:'';position:absolute;left:0;top:8px;bottom:8px;width:2px;background:var(--accent);border-radius:2px;
+}
+.sidebar-foot{padding:14px 24px 0;border-top:1px solid var(--line);margin-top:8px;}
+.userchip{display:flex;align-items:center;gap:10px;padding-top:14px;}
+.userchip .av{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-weight:700;font-size:12px;color:#fff;}
+.userchip .name{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;}
+.userchip button{background:none;border:none;color:var(--cream-faint);font-size:11px;margin-left:auto;}
+.userchip button:hover{color:var(--accent);}
+
+.main{flex:1;min-width:0;padding:32px 40px 100px;}
+.main-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:14px;}
+.main-head h2{font-family:'Anton',sans-serif;font-size:34px;margin:4px 0 0;letter-spacing:.01em;}
+.view{display:none;}
+.view.active{display:block;animation:fadeUp .45s var(--ease) both;}
+
+.grid{display:grid;gap:18px;}
+.card{background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;position:relative;overflow:hidden;}
+.card .eyebrow{margin-bottom:10px;}
+.hr{height:1px;background:var(--line);border:none;margin:18px 0;}
+
+/* dashboard grid */
+.dash-grid{grid-template-columns:1.4fr 1fr;}
+@media(max-width:920px){.dash-grid{grid-template-columns:1fr;}}
+.balance-num{font-family:'Anton',sans-serif;font-size:46px;letter-spacing:.01em;}
+.balance-num sup{font-size:20px;opacity:.6;}
+.trend{display:inline-flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:11px;padding:4px 9px;border-radius:20px;margin-left:10px;}
+.trend.up{background:var(--green-soft);color:var(--green);}
+.trend.down{background:var(--red-soft);color:var(--red);}
+.stat-row{display:flex;gap:22px;margin-top:18px;flex-wrap:wrap;}
+.stat{flex:1;min-width:90px;}
+.stat .v{font-family:'Space Mono',monospace;font-weight:700;font-size:19px;margin-top:4px;}
+.stat .v.g{color:var(--green);} .stat .v.r{color:var(--red);}
+
+.txn-list{list-style:none;margin:0;padding:0;}
+.txn-list li{
+  display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft);
+  animation:fadeUp .4s var(--ease) both;
+}
+.txn-list li:last-child{border-bottom:none;}
+.txn-ic{width:34px;height:34px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.txn-info{flex:1;min-width:0;}
+.txn-info .t{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.txn-info .s{font-size:11.5px;color:var(--cream-faint);margin-top:2px;}
+.txn-amt{font-family:'Space Mono',monospace;font-weight:700;font-size:13.5px;flex-shrink:0;}
+.txn-amt.g{color:var(--green);} .txn-amt.r{color:var(--red);}
+.empty-state{text-align:center;padding:40px 10px;color:var(--cream-faint);}
+.empty-state .glyph{font-size:26px;margin-bottom:10px;opacity:.5;}
+
+.chip-btn{
+  display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;border:none;
+  padding:10px 16px;border-radius:var(--radius);font-family:'Space Mono',monospace;font-size:11.5px;
+  letter-spacing:.08em;text-transform:uppercase;font-weight:700;transition:transform .15s var(--ease),background .2s;
+}
+.chip-btn:hover{background:#e2624a;} .chip-btn:active{transform:scale(.97);}
+.chip-btn.ghost{background:transparent;border:1px solid var(--line);color:var(--cream);}
+.chip-btn.ghost:hover{border-color:var(--cream-dim);}
+
+/* transactions view */
+.filter-row{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+.filter-row select,.filter-row input{background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:9px 12px;border-radius:var(--radius);font-size:12.5px;}
+table.txn-table{width:100%;border-collapse:collapse;font-size:13px;}
+table.txn-table th{text-align:left;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cream-faint);padding:10px 8px;border-bottom:1px solid var(--line);}
+table.txn-table td{padding:13px 8px;border-bottom:1px solid var(--line-soft);}
+table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
+.cat-badge{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.05em;padding:3px 9px;border-radius:20px;background:var(--bg-elevated);border:1px solid var(--line);}
+.del-btn{background:none;border:none;color:var(--cream-faint);font-size:13px;}
+.del-btn:hover{color:var(--red);}
+
+/* assistant view */
+.chat-wrap{background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;height:calc(100vh - 190px);min-height:420px;}
+.chat-log{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;}
+.msg{max-width:76%;padding:12px 15px;border-radius:var(--radius);font-size:13.5px;line-height:1.55;animation:fadeUp .35s var(--ease) both;white-space:pre-wrap;}
+.msg.user{align-self:flex-end;background:var(--accent);color:#fff;}
+.msg.ai{align-self:flex-start;background:var(--bg-elevated);border:1px solid var(--line);}
+.msg.ai.typing{display:flex;gap:5px;align-items:center;padding:14px 16px;}
+.msg.ai.typing span{width:6px;height:6px;background:var(--cream-dim);border-radius:50%;animation:blink 1.2s infinite;}
+.msg.ai.typing span:nth-child(2){animation-delay:.2s;} .msg.ai.typing span:nth-child(3){animation-delay:.4s;}
+@keyframes blink{0%,80%,100%{opacity:.25;}40%{opacity:1;}}
+.chat-input-row{display:flex;gap:10px;padding:16px;border-top:1px solid var(--line);}
+.chat-input-row input{flex:1;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:12px 14px;border-radius:var(--radius);font-size:13.5px;outline:none;}
+.chat-input-row input:focus{border-color:var(--accent);}
+.suggest-row{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 14px;}
+.suggest-row button{background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream-dim);font-size:11.5px;padding:7px 11px;border-radius:20px;}
+.suggest-row button:hover{color:var(--cream);border-color:var(--cream-dim);}
+
+/* budgets */
+.budget-row{margin-bottom:18px;}
+.budget-row:last-child{margin-bottom:0;}
+.budget-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;}
+.budget-head .cat{font-size:13.5px;font-weight:600;}
+.budget-head .amt{font-family:'Space Mono',monospace;font-size:12px;color:var(--cream-dim);}
+.budget-bar-bg{height:7px;background:var(--bg-elevated);border-radius:20px;overflow:hidden;}
+.budget-bar-fill{height:100%;border-radius:20px;transition:width .6s var(--ease);}
+.budget-bar-fill.ok{background:var(--green);}
+.budget-bar-fill.warn{background:#e0b878;}
+.budget-bar-fill.over{background:var(--red);}
+.budget-note{font-size:11px;color:var(--cream-faint);margin-top:5px;}
+.budget-note.over{color:var(--red);}
+
+/* settings */
+.settings-card{max-width:460px;}
+.hint{font-size:11.5px;color:var(--cream-faint);margin-top:6px;line-height:1.5;}
+
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;opacity:0;transition:opacity .25s var(--ease);}
+.modal-bg.active{display:flex;opacity:1;}
+.modal{width:100%;max-width:420px;background:var(--bg-panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px;margin:16px;transform:translateY(14px);opacity:0;transition:all .3s var(--ease);}
+.modal-bg.active .modal{transform:translateY(0);opacity:1;}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.modal-head h3{font-family:'Anton',sans-serif;font-size:22px;margin:0;letter-spacing:.01em;}
+.modal-head button{background:none;border:none;color:var(--cream-dim);font-size:18px;}
+.type-toggle{display:flex;gap:8px;margin-bottom:16px;}
+.type-toggle button{flex:1;padding:10px;border:1px solid var(--line);background:var(--bg-elevated);color:var(--cream-dim);border-radius:var(--radius);font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;}
+.type-toggle button.on{border-color:var(--accent);color:var(--cream);background:var(--accent-soft);}
+
+/* watermark */
+.watermark{
+  position:fixed;bottom:10px;right:14px;font-family:'Space Mono',monospace;font-size:10px;
+  color:var(--cream-faint);opacity:.5;letter-spacing:.04em;z-index:40;pointer-events:none;
+  user-select:none;
+}
+
+/* scrollbar */
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+@media(max-width:760px){
+  .sidebar{position:fixed;left:-236px;z-index:60;transition:left .3s var(--ease);box-shadow:0 0 40px rgba(0,0,0,.5);}
+  .sidebar.open{left:0;}
+  .main{padding:20px 16px 100px;}
+  #menuBtn{display:flex !important;}
+  .balance-num{font-size:34px;}
+  .filter-row{justify-content:flex-start !important;}
+  .filter-row > div{flex-wrap:wrap;}
+  .chat-wrap{height:calc(100vh - 260px);min-height:360px;}
+  .msg{max-width:88%;}
+}
+#menuBtn{display:none;align-items:center;justify-content:center;width:36px;height:36px;background:var(--bg-elevated);border:1px solid var(--line);border-radius:var(--radius);color:var(--cream);margin-right:12px;}
+
+@media(prefers-reduced-motion: reduce){
+  *{animation-duration:.001s !important;transition-duration:.001s !important;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============================= AUTH SCREEN ============================= -->
+  <section id="screen-auth" class="screen active">
+    <div class="dots" style="opacity:.5;"></div>
+    <nav class="auth-nav">
+      <div class="logo-mark"><span class="dot"></span><span>MEEK</span></div>
+      <span class="eyebrow">AI FINANCE ASSISTANT</span>
+    </nav>
+
+    <div class="auth-hero">
+      <h1 class="display">MEEK</h1>
+      <p class="tag">The quiet AI finance assistant that watches your money so you don't have to.<br><b>Track. Ask. Understand.</b> Built for one person — you.</p>
+      <div class="skyline" id="skyline"></div>
+    </div>
+
+    <div class="auth-forms">
+      <div class="auth-card">
+        <div class="auth-error" id="authError"></div>
+
+        <form id="loginForm">
+          <div class="field"><label>Email</label><input type="email" id="loginEmail" required autocomplete="email"></div>
+          <div class="field"><label>Password</label><input type="password" id="loginPass" required autocomplete="current-password"></div>
+          <button class="btn btn-primary" type="submit">Sign In</button>
+        </form>
+
+        <form id="signupForm" style="display:none;">
+          <div class="field"><label>Name</label><input type="text" id="suName" required></div>
+          <div class="field"><label>Email</label><input type="email" id="suEmail" required autocomplete="email"></div>
+          <div class="field"><label>Password</label><input type="password" id="suPass" required autocomplete="new-password" minlength="6"></div>
+          <button class="btn btn-primary" type="submit">Create Account</button>
+        </form>
+
+        <p class="auth-switch">
+          <span id="switchLabel">New to MEEK?</span>
+          <button id="switchBtn" type="button">Create an account</button>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= APP SHELL ============================= -->
+  <section id="screen-app" class="screen">
+    <aside class="sidebar" id="sidebar">
+      <div class="logo-mark"><span class="dot"></span><span>MEEK</span></div>
+      <ul class="navlist">
+        <li><button class="navbtn active" data-view="dashboard"><span class="ic">◆</span>Dashboard</button></li>
+        <li><button class="navbtn" data-view="transactions"><span class="ic">≡</span>Transactions</button></li>
+        <li><button class="navbtn" data-view="budgets"><span class="ic">▦</span>Budgets</button></li>
+        <li><button class="navbtn" data-view="assistant"><span class="ic">✦</span>Assistant</button></li>
+        <li><button class="navbtn" data-view="settings"><span class="ic">⚙</span>Settings</button></li>
+      </ul>
+      <div class="sidebar-foot">
+        <div class="userchip">
+          <div class="av" id="userAv">?</div>
+          <div class="name" id="userName">—</div>
+          <button id="logoutBtn" title="Sign out">Exit</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="main-head">
+        <div style="display:flex;align-items:center;">
+          <button id="menuBtn">☰</button>
+          <div>
+            <span class="eyebrow" id="viewEyebrow">OVERVIEW</span>
+            <h2 id="viewTitle">Dashboard</h2>
+          </div>
+        </div>
+        <button class="chip-btn" id="addTxnBtn">+ Add Transaction</button>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div class="view active" id="view-dashboard">
+        <div class="grid dash-grid">
+          <div class="card">
+            <span class="eyebrow">Current Balance</span>
+            <div style="display:flex;align-items:baseline;margin-top:6px;flex-wrap:wrap;">
+              <span class="balance-num tabular" id="balanceNum">$0</span>
+              <span class="trend up" id="balanceTrend" style="display:none;"></span>
+            </div>
+            <div class="stat-row">
+              <div class="stat"><span class="eyebrow">Income</span><div class="v g tabular" id="incomeTotal">$0</div></div>
+              <div class="stat"><span class="eyebrow">Expenses</span><div class="v r tabular" id="expenseTotal">$0</div></div>
+              <div class="stat"><span class="eyebrow">Transactions</span><div class="v tabular" id="txnCount">0</div></div>
+            </div>
+            <hr class="hr">
+            <span class="eyebrow">30-Day Trend</span>
+            <div style="height:160px;margin-top:12px;"><canvas id="trendChart"></canvas></div>
+          </div>
+
+          <div class="card">
+            <span class="eyebrow">By Category</span>
+            <div style="height:190px;margin-top:14px;"><canvas id="catChart"></canvas></div>
+            <hr class="hr">
+            <span class="eyebrow">Recent Activity</span>
+            <ul class="txn-list" id="recentList" style="margin-top:10px;"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div class="view" id="view-transactions">
+        <div class="card">
+          <div class="filter-row" style="justify-content:space-between;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <select id="filterType"><option value="all">All Types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+              <select id="filterCat"><option value="all">All Categories</option></select>
+              <input type="text" id="filterSearch" placeholder="Search notes…">
+            </div>
+            <button class="chip-btn ghost" id="exportCsvBtn" type="button">Export CSV</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="txn-table">
+              <thead><tr><th>Date</th><th>Note</th><th>Category</th><th>Type</th><th style="text-align:right;">Amount</th><th></th></tr></thead>
+              <tbody id="txnTableBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="txnEmpty" style="display:none;">
+            <div class="glyph">◇</div>No transactions yet. Add your first one.
+          </div>
+        </div>
+      </div>
+
+      <!-- BUDGETS -->
+      <div class="view" id="view-budgets">
+        <div class="grid dash-grid">
+          <div class="card">
+            <span class="eyebrow">Set Monthly Budget</span>
+            <form id="budgetForm" style="margin-top:14px;">
+              <div class="field"><label>Category</label>
+                <select id="bCategory" style="width:100%;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:12px 13px;border-radius:var(--radius);font-size:14px;">
+                  <option>Food</option><option>Transport</option><option>Housing</option><option>Utilities</option>
+                  <option>Shopping</option><option>Health</option><option>Entertainment</option><option>Other</option>
+                </select>
+              </div>
+              <div class="field"><label>Monthly Limit</label><input type="number" step="0.01" min="0.01" id="bAmount" required></div>
+              <button class="chip-btn" type="submit">Save Budget</button>
+            </form>
+          </div>
+          <div class="card">
+            <span class="eyebrow">This Month's Progress</span>
+            <div id="budgetList" style="margin-top:16px;"></div>
+            <div class="empty-state" id="budgetEmpty" style="display:none;">
+              <div class="glyph">▦</div>No budgets set yet. Add one on the left.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ASSISTANT -->
+      <div class="view" id="view-assistant">
+        <div class="chat-wrap">
+          <div class="chat-log" id="chatLog">
+            <div class="msg ai">Hi, I'm MEEK. Ask me anything about your spending — I can see your transaction history and give you straight answers.</div>
+          </div>
+          <div class="suggest-row">
+            <button data-q="How much did I spend this month?">This month's spend?</button>
+            <button data-q="What's my biggest expense category?">Biggest category?</button>
+            <button data-q="Give me one tip to save more.">Give me a tip</button>
+          </div>
+          <form class="chat-input-row" id="chatForm">
+            <input type="text" id="chatInput" placeholder="Ask MEEK about your money…" autocomplete="off">
+            <button class="chip-btn" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="view" id="view-settings">
+        <div class="card settings-card">
+          <span class="eyebrow">Gemini API Key</span>
+          <div class="field" style="margin-top:12px;">
+            <input type="password" id="apiKeyInput" placeholder="Paste your free Gemini API key">
+          </div>
+          <button class="chip-btn" id="saveKeyBtn">Save Key</button>
+          <p class="hint">Get a free key at aistudio.google.com/apikey. It's stored in your own Firestore, never in this file.</p>
+          <hr class="hr">
+          <span class="eyebrow">Currency Symbol</span>
+          <div class="field" style="margin-top:12px;"><input type="text" id="currencyInput" maxlength="3" placeholder="₱"></div>
+          <button class="chip-btn ghost" id="saveCurrencyBtn">Save</button>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <div class="watermark">Built by <span id="wmName">—</span> · MEEK</div>
+</div>
+
+<!-- ============================= ADD TRANSACTION MODAL ============================= -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-head"><h3>New Entry</h3><button id="modalClose">✕</button></div>
+    <form id="txnForm">
+      <div class="type-toggle">
+        <button type="button" class="on" data-type="expense" id="typeExpense">Expense</button>
+        <button type="button" data-type="income" id="typeIncome">Income</button>
+      </div>
+      <div class="field"><label>Amount</label><input type="number" step="0.01" min="0.01" id="fAmount" required></div>
+      <div class="field"><label>Category</label>
+        <select id="fCategory" style="width:100%;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:12px 13px;border-radius:var(--radius);font-size:14px;">
+          <option>Food</option><option>Transport</option><option>Housing</option><option>Utilities</option>
+          <option>Shopping</option><option>Health</option><option>Entertainment</option><option>Salary</option>
+          <option>Freelance</option><option>Investment</option><option>Other</option>
+        </select>
+      </div>
+      <div class="field"><label>Note</label><input type="text" id="fNote" placeholder="Optional"></div>
+      <div class="field"><label>Date</label><input type="date" id="fDate" required></div>
+      <button class="btn btn-primary" type="submit">Save Entry</button>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut, updateProfile
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot,
+  query, where, orderBy, setDoc, getDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ====================== CONFIG — EDIT THESE ====================== */
+// 1) Paste your own Firebase project config below (Firebase Console → Project Settings).
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAOgeastCl1PWWPYI1m5NAHUzV9iQzWv5k",
+  authDomain: "meek-e9cdd.firebaseapp.com",
+  projectId: "meek-e9cdd",
+  storageBucket: "meek-e9cdd.firebasestorage.app",
+  messagingSenderId: "1051967874530",
+  appId: "1:1051967874530:web:0d76a2dac1698b9c7305bb"
+};
+// 2) Put your name/handle here — shown as the small watermark bottom-right.
+const WATERMARK_NAME = "FrancisL";
+/* ==================================================================== */
+
+document.getElementById('wmName').textContent = WATERMARK_NAME;
+
+let app, auth, db;
+let firebaseReady = false;
+try{
+  app = initializeApp(FIREBASE_CONFIG);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  firebaseReady = true;
+}catch(e){ console.error("Firebase init failed — check FIREBASE_CONFIG", e); }
+
+/* ---------- skyline bars ---------- */
+const skyline = document.getElementById('skyline');
+const bars = 42;
+for(let i=0;i<bars;i++){
+  const h = 20 + Math.round(Math.sin(i*0.5)*15) + Math.round(Math.random()*55);
+  const el = document.createElement('i');
+  el.style.height = h+'px';
+  el.style.setProperty('--d', (Math.random()*3).toFixed(2));
+  skyline.appendChild(el);
+}
+
+/* ---------- auth screen toggle ---------- */
+const loginForm = document.getElementById('loginForm');
+const signupForm = document.getElementById('signupForm');
+const switchBtn = document.getElementById('switchBtn');
+const switchLabel = document.getElementById('switchLabel');
+const authError = document.getElementById('authError');
+let isLoginMode = true;
+
+switchBtn.addEventListener('click', ()=>{
+  isLoginMode = !isLoginMode;
+  loginForm.style.display = isLoginMode ? 'block' : 'none';
+  signupForm.style.display = isLoginMode ? 'none' : 'block';
+  switchLabel.textContent = isLoginMode ? 'New to MEEK?' : 'Already have an account?';
+  switchBtn.textContent = isLoginMode ? 'Create an account' : 'Sign in';
+  authError.style.display = 'none';
+});
+
+function showAuthError(msg){
+  authError.textContent = msg;
+  authError.style.display = 'block';
+}
+
+loginForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!firebaseReady) return showAuthError("Firebase isn't configured yet — edit FIREBASE_CONFIG in the script.");
+  try{
+    await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
+  }catch(err){ showAuthError(friendlyError(err)); }
+});
+
+signupForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!firebaseReady) return showAuthError("Firebase isn't configured yet — edit FIREBASE_CONFIG in the script.");
+  try{
+    const cred = await createUserWithEmailAndPassword(auth, document.getElementById('suEmail').value, document.getElementById('suPass').value);
+    await updateProfile(cred.user, { displayName: document.getElementById('suName').value });
+  }catch(err){ showAuthError(friendlyError(err)); }
+});
+
+function friendlyError(err){
+  const m = err.code || '';
+  if(m.includes('email-already-in-use')) return 'That email is already registered.';
+  if(m.includes('invalid-credential') || m.includes('wrong-password') || m.includes('user-not-found')) return 'Incorrect email or password.';
+  if(m.includes('weak-password')) return 'Password should be at least 6 characters.';
+  if(m.includes('invalid-email')) return 'That email looks invalid.';
+  return 'Something went wrong. Please try again.';
+}
+
+document.getElementById('logoutBtn').addEventListener('click', ()=> firebaseReady && signOut(auth));
+
+/* ---------- state ---------- */
+let currentUser = null;
+let transactions = [];
+let userSettings = { geminiKey:'', currency:'₱' };
+let unsubTxns = null;
+
+if(firebaseReady){
+  onAuthStateChanged(auth, async (user)=>{
+    if(user){
+      currentUser = user;
+      document.getElementById('screen-auth').classList.remove('active');
+      document.getElementById('screen-app').classList.add('active');
+      document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
+      document.getElementById('userAv').textContent = (user.displayName || user.email)[0].toUpperCase();
+      await loadSettings();
+      listenTransactions();
+      listenBudgets();
+    } else {
+      currentUser = null;
+      if(unsubTxns) unsubTxns();
+      if(unsubBudgets) unsubBudgets();
+      document.getElementById('screen-app').classList.remove('active');
+      document.getElementById('screen-auth').classList.add('active');
+    }
+  });
+}
+
+/* ---------- budgets ---------- */
+let budgets = {};
+let unsubBudgets = null;
+function listenBudgets(){
+  unsubBudgets = onSnapshot(doc(db,'budgets',currentUser.uid), (snap)=>{
+    budgets = snap.exists() ? (snap.data().limits || {}) : {};
+    renderBudgets();
+  });
+}
+
+document.getElementById('budgetForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const cat = document.getElementById('bCategory').value;
+  const amt = parseFloat(document.getElementById('bAmount').value);
+  if(!amt || amt<=0) return;
+  budgets[cat] = amt;
+  await setDoc(doc(db,'budgets',currentUser.uid), { limits: budgets }, {merge:true});
+  document.getElementById('budgetForm').reset();
+});
+
+function renderBudgets(){
+  const list = document.getElementById('budgetList');
+  const cats = Object.keys(budgets);
+  document.getElementById('budgetEmpty').style.display = cats.length ? 'none' : 'block';
+  if(!cats.length){ list.innerHTML=''; return; }
+
+  const now = new Date();
+  const ym = now.toISOString().slice(0,7); // YYYY-MM
+  const spentByCat = {};
+  transactions.filter(t=>t.type==='expense' && t.date.startsWith(ym)).forEach(t=>{
+    spentByCat[t.category] = (spentByCat[t.category]||0) + t.amount;
+  });
+
+  list.innerHTML = cats.map(cat=>{
+    const limit = budgets[cat];
+    const spent = spentByCat[cat] || 0;
+    const pct = Math.min(100, (spent/limit)*100);
+    const over = spent > limit;
+    const cls = over ? 'over' : (pct>=80 ? 'warn' : 'ok');
+    return `<div class="budget-row">
+      <div class="budget-head"><span class="cat">${cat}</span><span class="amt tabular">${fmt(spent)} / ${fmt(limit)}</span></div>
+      <div class="budget-bar-bg"><div class="budget-bar-fill ${cls}" style="width:${pct}%"></div></div>
+      <div class="budget-note ${over?'over':''}">${over ? `Over budget by ${fmt(spent-limit)}` : `${(100-pct).toFixed(0)}% remaining`}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- CSV export ---------- */
+document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
+  if(!transactions.length) return;
+  const rows = [['Date','Type','Category','Amount','Note']];
+  transactions.forEach(t=> rows.push([t.date, t.type, t.category, t.amount, (t.note||'').replace(/,/g,';')]));
+  const csv = rows.map(r=> r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `meek-transactions-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+async function loadSettings(){
+  try{
+    const ref = doc(db, 'settings', currentUser.uid);
+    const snap = await getDoc(ref);
+    if(snap.exists()){
+      userSettings = { geminiKey:'', currency:'₱', ...snap.data() };
+    }
+  }catch(e){ console.error(e); }
+  document.getElementById('apiKeyInput').value = userSettings.geminiKey || '';
+  document.getElementById('currencyInput').value = userSettings.currency || '₱';
+}
+
+document.getElementById('saveKeyBtn').addEventListener('click', async ()=>{
+  userSettings.geminiKey = document.getElementById('apiKeyInput').value.trim();
+  modelCandidates = null; // re-detect working models whenever the key changes
+  await setDoc(doc(db,'settings',currentUser.uid), userSettings, {merge:true});
+  toast('API key saved.');
+});
+document.getElementById('saveCurrencyBtn').addEventListener('click', async ()=>{
+  userSettings.currency = document.getElementById('currencyInput').value.trim() || '₱';
+  await setDoc(doc(db,'settings',currentUser.uid), userSettings, {merge:true});
+  renderAll();
+  toast('Currency updated.');
+});
+
+function toast(msg){
+  // minimal non-blocking feedback via chat-free inline flash on the button row — kept simple
+  console.log(msg);
+}
+
+/* ---------- transactions: firestore realtime ---------- */
+function listenTransactions(){
+  const q = query(collection(db,'transactions'), where('uid','==', currentUser.uid));
+  unsubTxns = onSnapshot(q, (snap)=>{
+    transactions = [];
+    snap.forEach(d=> transactions.push({ id:d.id, ...d.data() }));
+    transactions.sort((a,b)=> new Date(b.date) - new Date(a.date));
+    renderAll();
+  });
+}
+
+/* ---------- navigation ---------- */
+const navBtns = document.querySelectorAll('.navbtn');
+const views = document.querySelectorAll('.view');
+const titles = { dashboard:['OVERVIEW','Dashboard'], transactions:['LEDGER','Transactions'], budgets:['LIMITS','Budgets'], assistant:['MEEK AI','Assistant'], settings:['CONFIGURE','Settings'] };
+navBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    navBtns.forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const v = btn.dataset.view;
+    views.forEach(x=>x.classList.remove('active'));
+    document.getElementById('view-'+v).classList.add('active');
+    document.getElementById('viewEyebrow').textContent = titles[v][0];
+    document.getElementById('viewTitle').textContent = titles[v][1];
+    document.getElementById('sidebar').classList.remove('open');
+  });
+});
+document.getElementById('menuBtn').addEventListener('click', ()=> document.getElementById('sidebar').classList.toggle('open'));
+
+/* ---------- add transaction modal ---------- */
+const modalBg = document.getElementById('modalBg');
+const txnForm = document.getElementById('txnForm');
+let selectedType = 'expense';
+document.getElementById('addTxnBtn').addEventListener('click', ()=>{
+  document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+  modalBg.classList.add('active');
+});
+document.getElementById('modalClose').addEventListener('click', ()=> modalBg.classList.remove('active'));
+modalBg.addEventListener('click', (e)=>{ if(e.target===modalBg) modalBg.classList.remove('active'); });
+
+document.getElementById('typeExpense').addEventListener('click', ()=> setType('expense'));
+document.getElementById('typeIncome').addEventListener('click', ()=> setType('income'));
+function setType(t){
+  selectedType = t;
+  document.getElementById('typeExpense').classList.toggle('on', t==='expense');
+  document.getElementById('typeIncome').classList.toggle('on', t==='income');
+}
+
+txnForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const amt = parseFloat(document.getElementById('fAmount').value);
+  if(!amt || amt<=0) return;
+  const payload = {
+    uid: currentUser.uid,
+    amount: amt,
+    type: selectedType,
+    category: document.getElementById('fCategory').value,
+    note: document.getElementById('fNote').value || '',
+    date: document.getElementById('fDate').value,
+    createdAt: serverTimestamp()
+  };
+  await addDoc(collection(db,'transactions'), payload);
+  txnForm.reset();
+  setType('expense');
+  modalBg.classList.remove('active');
+});
+
+/* ---------- rendering ---------- */
+let trendChartInst=null, catChartInst=null;
+
+function fmt(n){
+  const c = userSettings.currency || '₱';
+  const sign = n<0?'-':'';
+  return sign + c + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function renderAll(){
+  renderDashboard();
+  renderTable();
+  populateCategoryFilter();
+  renderBudgets();
+}
+
+function renderDashboard(){
+  const income = transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense = transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const balance = income - expense;
+  animateNumber(document.getElementById('balanceNum'), balance);
+  document.getElementById('incomeTotal').textContent = fmt(income);
+  document.getElementById('expenseTotal').textContent = fmt(expense);
+  document.getElementById('txnCount').textContent = transactions.length;
+
+  const trendEl = document.getElementById('balanceTrend');
+  if(transactions.length){
+    trendEl.style.display='inline-flex';
+    trendEl.className = 'trend ' + (balance>=0?'up':'down');
+    trendEl.textContent = (balance>=0?'▲ ':'▼ ') + 'Net ' + fmt(balance);
+  } else { trendEl.style.display='none'; }
+
+  // recent list
+  const list = document.getElementById('recentList');
+  list.innerHTML='';
+  const recent = transactions.slice(0,5);
+  if(!recent.length){
+    list.innerHTML = '<li style="border:none;justify-content:center;color:var(--cream-faint);padding:20px 0;">No activity yet</li>';
+  } else {
+    recent.forEach(t=>{
+      const li=document.createElement('li');
+      li.innerHTML = `<div class="txn-ic">${catIcon(t.category)}</div>
+        <div class="txn-info"><div class="t">${escapeHtml(t.note||t.category)}</div><div class="s">${t.category} · ${t.date}</div></div>
+        <div class="txn-amt ${t.type==='income'?'g':'r'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>`;
+      list.appendChild(li);
+    });
+  }
+
+  renderTrendChart();
+  renderCatChart();
+}
+
+function animateNumber(el, target){
+  const start = parseFloat(el.dataset.raw||0);
+  const dur=600, t0=performance.now();
+  function step(t){
+    const p = Math.min(1,(t-t0)/dur);
+    const eased = 1-Math.pow(1-p,3);
+    const val = start + (target-start)*eased;
+    el.textContent = fmt(val);
+    if(p<1) requestAnimationFrame(step); else el.dataset.raw=target;
+  }
+  requestAnimationFrame(step);
+}
+
+function catIcon(cat){
+  const map = {Food:'🍔',Transport:'🚗',Housing:'🏠',Utilities:'💡',Shopping:'🛍',Health:'⚕',Entertainment:'🎬',Salary:'💰',Freelance:'💻',Investment:'📈',Other:'◇'};
+  return map[cat]||'◇';
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function renderTrendChart(){
+  const days=[]; const now=new Date();
+  for(let i=29;i>=0;i--){ const d=new Date(now); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
+  const netByDay = days.map(day=>{
+    const dayTxns = transactions.filter(t=>t.date===day);
+    return dayTxns.reduce((s,t)=> s + (t.type==='income'?t.amount:-t.amount), 0);
+  });
+  const ctx = document.getElementById('trendChart');
+  if(trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(ctx, {
+    type:'line',
+    data:{ labels:days.map(d=>d.slice(5)), datasets:[{
+      data:netByDay, borderColor:'#d6543a', backgroundColor:'rgba(214,84,58,.12)',
+      fill:true, tension:.35, pointRadius:0, borderWidth:2
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{backgroundColor:'#1a1a1a', borderColor:'#272522', borderWidth:1, titleColor:'#f1e7d3', bodyColor:'#f1e7d3'}},
+      scales:{ x:{display:false}, y:{display:false} }
+    }
+  });
+}
+
+function renderCatChart(){
+  const expenses = transactions.filter(t=>t.type==='expense');
+  const byCat = {};
+  expenses.forEach(t=> byCat[t.category] = (byCat[t.category]||0) + t.amount);
+  const labels = Object.keys(byCat);
+  const data = Object.values(byCat);
+  const palette = ['#d6543a','#8fb37a','#c9564f','#e0b878','#9c8f7a','#7a95b3','#b384c9','#e0e0e0'];
+  const ctx = document.getElementById('catChart');
+  if(catChartInst) catChartInst.destroy();
+  if(!labels.length){
+    ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+    return;
+  }
+  catChartInst = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:palette, borderColor:'#131313', borderWidth:2 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{ legend:{ position:'right', labels:{ color:'#9c9284', font:{family:'Space Mono', size:10}, boxWidth:8 } } }
+    }
+  });
+}
+
+/* ---------- transactions table ---------- */
+function populateCategoryFilter(){
+  const sel = document.getElementById('filterCat');
+  const cur = sel.value;
+  const cats = [...new Set(transactions.map(t=>t.category))];
+  sel.innerHTML = '<option value="all">All Categories</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  sel.value = cats.includes(cur)?cur:'all';
+}
+['filterType','filterCat','filterSearch'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderTable);
+});
+
+function renderTable(){
+  const type = document.getElementById('filterType').value;
+  const cat = document.getElementById('filterCat').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase();
+  const filtered = transactions.filter(t=>{
+    if(type!=='all' && t.type!==type) return false;
+    if(cat!=='all' && t.category!==cat) return false;
+    if(search && !(t.note||'').toLowerCase().includes(search) && !t.category.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  const body = document.getElementById('txnTableBody');
+  body.innerHTML='';
+  document.getElementById('txnEmpty').style.display = filtered.length?'none':'block';
+  filtered.forEach(t=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="mono" style="color:var(--cream-faint);">${t.date}</td>
+      <td>${escapeHtml(t.note||'—')}</td>
+      <td><span class="cat-badge">${t.category}</span></td>
+      <td style="color:${t.type==='income'?'var(--green)':'var(--red)'};text-transform:capitalize;">${t.type}</td>
+      <td class="tabular" style="text-align:right;font-weight:700;color:${t.type==='income'?'var(--green)':'var(--red)'};">${t.type==='income'?'+':'-'}${fmt(t.amount)}</td>
+      <td style="text-align:right;"><button class="del-btn" data-id="${t.id}">✕</button></td>`;
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('.del-btn').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      await deleteDoc(doc(db,'transactions', b.dataset.id));
+    });
+  });
+}
+
+/* ---------- AI assistant (Gemini free tier) ---------- */
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatLog = document.getElementById('chatLog');
+
+document.querySelectorAll('.suggest-row button').forEach(b=>{
+  b.addEventListener('click', ()=>{ chatInput.value = b.dataset.q; chatForm.dispatchEvent(new Event('submit')); });
+});
+
+chatForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const q = chatInput.value.trim();
+  if(!q) return;
+  addMsg(q,'user');
+  chatInput.value='';
+  const typingEl = addTyping();
+  try{
+    const reply = await askMeek(q);
+    typingEl.remove();
+    addMsg(reply,'ai');
+  }catch(err){
+    typingEl.remove();
+    addMsg(err.message || "I couldn't reach the AI service. Check your API key in Settings.", 'ai');
+  }
+});
+
+function addMsg(text, who){
+  const div = document.createElement('div');
+  div.className = 'msg '+who;
+  div.textContent = text;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return div;
+}
+function addTyping(){
+  const div = document.createElement('div');
+  div.className = 'msg ai typing';
+  div.innerHTML = '<span></span><span></span><span></span>';
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return div;
+}
+
+let modelCandidates = null;
+
+async function getModelCandidates(){
+  if(modelCandidates) return modelCandidates;
+  const fallback = ['gemini-flash-latest','gemini-2.5-flash-lite','gemini-2.5-flash','gemini-pro-latest'];
+  try{
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${userSettings.geminiKey}`);
+    if(!res.ok) throw new Error('list failed');
+    const data = await res.json();
+    const names = (data.models || [])
+      .filter(m =>
+        m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')
+        && /flash|pro/i.test(m.name)
+        && !/vision|embedding|tts|image|live|audio|thinking-exp/i.test(m.name)
+      )
+      .map(m => m.name.replace('models/',''))
+      // lite models tend to be less contested on the free tier — try them first
+      .sort((a,b)=>{
+        const score = n => (/lite/i.test(n)?200:0) + (/latest/i.test(n)?100:0) + (parseFloat((n.match(/(\d+(\.\d+)?)/)||[0])[0]) || 0);
+        return score(b) - score(a);
+      });
+    if(names.length){ modelCandidates = names; return modelCandidates; }
+  }catch(e){ console.warn('Model list lookup failed, using fallback list.', e); }
+  modelCandidates = fallback;
+  return modelCandidates;
+}
+
+async function askMeek(question){
+  if(!userSettings.geminiKey){
+    throw new Error("Add a free Gemini API key in Settings first — get one at aistudio.google.com/apikey.");
+  }
+  const income = transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense = transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const byCat = {};
+  transactions.filter(t=>t.type==='expense').forEach(t=> byCat[t.category]=(byCat[t.category]||0)+t.amount);
+  const recentSummary = transactions.slice(0,25).map(t=>`${t.date} | ${t.type} | ${t.category} | ${t.amount} | ${t.note||''}`).join('\n');
+
+  const systemPrompt = `You are MEEK, a calm, direct personal finance assistant embedded in the user's own finance app.
+Currency symbol: ${userSettings.currency||'₱'}.
+Total income: ${income}. Total expenses: ${expense}. Net balance: ${income-expense}.
+Spending by category: ${JSON.stringify(byCat)}.
+Recent transactions (date | type | category | amount | note):
+${recentSummary || 'No transactions yet.'}
+
+Answer the user's question using only this data. Be concise, warm but plain-spoken, and give concrete numbers when possible. If there's not enough data, say so plainly.`;
+
+  const candidates = await getModelCandidates();
+  let lastRes = null;
+
+  for(const model of candidates){
+    let res = await callGemini(model, systemPrompt, question);
+    // give an overloaded/rate-limited model one quick retry before moving on
+    if(res.status===503 || res.status===429){
+      await new Promise(r => setTimeout(r, 700));
+      res = await callGemini(model, systemPrompt, question);
+    }
+    if(res.ok){
+      const data = await res.json();
+      return data?.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response — try rephrasing.";
+    }
+    lastRes = res;
+    // 404 (model not available to this key) or still-overloaded — try the next candidate
+    if(res.status===404 || res.status===503 || res.status===429) continue;
+    // any other error (bad key, bad request) — no point trying more models
+    break;
+  }
+
+  if(lastRes && (lastRes.status===503 || lastRes.status===429)){
+    throw new Error("Gemini's free tier is under heavy load across every available model right now — please try again shortly.");
+  }
+  const errText = lastRes ? await lastRes.text() : 'No response from Gemini.';
+  throw new Error("AI request failed. Double-check your Gemini API key. " + errText.slice(0,120));
+}
+
+function callGemini(model, systemPrompt, question){
+  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userSettings.geminiKey}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      contents:[{ parts:[{ text: systemPrompt + "\n\nUser question: " + question }] }]
+    })
+  });
+}
+
+</script>
+</body>
+</html>
