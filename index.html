@@ -273,6 +273,39 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
 .settings-card{max-width:460px;}
 .hint{font-size:11.5px;color:var(--cream-faint);margin-top:6px;line-height:1.5;}
 
+/* ============================= CALENDAR / SCHEDULER ============================= */
+.cal-head{display:flex;align-items:center;gap:8px;margin-bottom:16px;}
+.cal-head .display{font-family:'Anton',sans-serif;font-size:19px;letter-spacing:.01em;flex:1;text-align:center;}
+.cal-head button{width:auto;padding:8px 12px;font-size:11px;}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px;}
+.cal-dow span{text-align:center;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-faint);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.cal-cell{
+  min-height:54px;background:var(--bg-elevated);border:1px solid var(--line-soft);border-radius:var(--radius);
+  padding:6px;display:flex;flex-direction:column;gap:4px;cursor:pointer;
+  transition:border-color .18s var(--ease),background .18s var(--ease);
+}
+.cal-cell:hover{border-color:var(--cream-faint);}
+.cal-cell.blank{background:transparent;border-color:transparent;cursor:default;}
+.cal-cell .d{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--cream-dim);line-height:1;}
+.cal-cell.today .d{color:var(--accent);font-weight:700;}
+.cal-cell.sel{border-color:var(--accent);background:var(--accent-soft);}
+.cal-cell .dots-row{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto;align-items:center;}
+.cal-cell .dots-row i{width:6px;height:6px;border-radius:50%;display:block;}
+.cal-cell .more{font-family:'Space Mono',monospace;font-size:9px;color:var(--cream-faint);}
+.cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;}
+.cal-legend span{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-dim);}
+.cal-legend i{width:7px;height:7px;border-radius:50%;display:block;}
+.sched-check{background:none;border:1px solid var(--line);color:var(--cream-faint);width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;flex-shrink:0;padding:0;}
+.sched-check.on{background:var(--green-soft);border-color:var(--green);color:var(--green);}
+.sched-item .t.done{text-decoration:line-through;color:var(--cream-faint);}
+#schedTypeToggle{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+#schedTypeToggle button{padding:9px 4px;font-size:10.5px;letter-spacing:.04em;}
+@media(max-width:520px){
+  .cal-cell{min-height:44px;padding:4px;}
+  .cal-cell .d{font-size:10px;}
+}
+
 /* modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;opacity:0;transition:opacity .25s var(--ease);}
 .modal-bg.active{display:flex;opacity:1;}
@@ -365,6 +398,7 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
         <li><button class="navbtn active" data-view="dashboard"><span class="ic">◆</span>Dashboard</button></li>
         <li><button class="navbtn" data-view="transactions"><span class="ic">≡</span>Transactions</button></li>
         <li><button class="navbtn" data-view="budgets"><span class="ic">▦</span>Budgets</button></li>
+        <li><button class="navbtn" data-view="calendar"><span class="ic">▤</span>Calendar</button></li>
         <li><button class="navbtn" data-view="assistant"><span class="ic">✦</span>Assistant</button></li>
         <li><button class="navbtn" data-view="settings"><span class="ic">⚙</span>Settings</button></li>
       </ul>
@@ -463,6 +497,50 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
             <div class="empty-state" id="budgetEmpty" style="display:none;">
               <div class="glyph">▦</div>No budgets set yet. Add one on the left.
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CALENDAR / SCHEDULER -->
+      <div class="view" id="view-calendar">
+        <div class="grid dash-grid">
+          <div class="card">
+            <div class="cal-head">
+              <button class="chip-btn ghost" id="calPrev" type="button">‹</button>
+              <span class="display" id="calMonthLabel">—</span>
+              <button class="chip-btn ghost" id="calNext" type="button">›</button>
+              <button class="chip-btn ghost" id="calToday" type="button">Today</button>
+            </div>
+            <div class="cal-dow">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="cal-grid" id="calGridDays"></div>
+            <div class="cal-legend">
+              <span><i style="background:#c9564f"></i>To Pay</span>
+              <span><i style="background:#d6543a"></i>To Buy</span>
+              <span><i style="background:#7a95b3"></i>Work</span>
+              <span><i style="background:#8fb37a"></i>Other</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="eyebrow" id="calDayLabel">Select a day</span>
+            <ul class="txn-list" id="calDayList" style="margin-top:10px;"></ul>
+            <hr class="hr">
+            <span class="eyebrow">Add to this day</span>
+            <form id="schedForm" style="margin-top:12px;">
+              <div class="type-toggle" id="schedTypeToggle">
+                <button type="button" class="on" data-stype="pay">Pay</button>
+                <button type="button" data-stype="buy">Buy</button>
+                <button type="button" data-stype="work">Work</button>
+                <button type="button" data-stype="other">Other</button>
+              </div>
+              <div class="field"><label>What</label><input type="text" id="sTitle" placeholder="Rent, groceries, shift…" required></div>
+              <div class="field"><label>Amount (optional)</label><input type="number" step="0.01" min="0" id="sAmount" placeholder="0.00"></div>
+              <div class="field"><label>Time (optional)</label><input type="time" id="sTime"></div>
+              <div class="field"><label>Date</label><input type="date" id="sDate" required></div>
+              <button class="btn btn-primary" type="submit">Add to Schedule</button>
+            </form>
           </div>
         </div>
       </div>
@@ -644,10 +722,12 @@ if(firebaseReady){
       await loadSettings();
       listenTransactions();
       listenBudgets();
+      listenSchedules();
     } else {
       currentUser = null;
       if(unsubTxns) unsubTxns();
       if(unsubBudgets) unsubBudgets();
+      if(unsubScheds) unsubScheds();
       document.getElementById('screen-app').classList.remove('active');
       document.getElementById('screen-auth').classList.add('active');
     }
@@ -759,7 +839,7 @@ function listenTransactions(){
 /* ---------- navigation ---------- */
 const navBtns = document.querySelectorAll('.navbtn');
 const views = document.querySelectorAll('.view');
-const titles = { dashboard:['OVERVIEW','Dashboard'], transactions:['LEDGER','Transactions'], budgets:['LIMITS','Budgets'], assistant:['MEEK AI','Assistant'], settings:['CONFIGURE','Settings'] };
+const titles = { dashboard:['OVERVIEW','Dashboard'], transactions:['LEDGER','Transactions'], budgets:['LIMITS','Budgets'], calendar:['PLANNER','Calendar'], assistant:['MEEK AI','Assistant'], settings:['CONFIGURE','Settings'] };
 navBtns.forEach(btn=>{
   btn.addEventListener('click', ()=>{
     navBtns.forEach(b=>b.classList.remove('active'));
@@ -970,6 +1050,173 @@ function renderTable(){
     });
   });
 }
+
+/* =====================================================================
+   CALENDAR / SCHEDULER
+   Plan what to PAY, what to BUY, WORK shifts and anything else, by day + time.
+   Stored in Firestore collection "schedules".
+   ===================================================================== */
+const SCHED_TYPES = {
+  pay:  { label:'Pay',   color:'#c9564f', icon:'₱' },
+  buy:  { label:'Buy',   color:'#d6543a', icon:'🛍' },
+  work: { label:'Work',  color:'#7a95b3', icon:'💼' },
+  other:{ label:'Other', color:'#8fb37a', icon:'◆' }
+};
+function schedMeta(t){ return SCHED_TYPES[t] || SCHED_TYPES.other; }
+function isoDate(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+let schedules = [];
+let unsubScheds = null;
+let calCursor = new Date();
+let calSelected = isoDate(new Date());
+let selectedSType = 'pay';
+
+function listenSchedules(){
+  const q = query(collection(db,'schedules'), where('uid','==', currentUser.uid));
+  unsubScheds = onSnapshot(q, (snap)=>{
+    schedules = [];
+    snap.forEach(d=> schedules.push({ id:d.id, ...d.data() }));
+    schedules.sort((a,b)=> (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+    renderCalendar();
+    renderDayList();
+  });
+}
+
+function syncSchedDate(){
+  const el = document.getElementById('sDate');
+  if(el) el.value = calSelected;
+}
+
+document.getElementById('calPrev').addEventListener('click', ()=>{
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()-1, 1);
+  renderCalendar();
+});
+document.getElementById('calNext').addEventListener('click', ()=>{
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()+1, 1);
+  renderCalendar();
+});
+document.getElementById('calToday').addEventListener('click', ()=>{
+  const now = new Date();
+  calCursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  calSelected = isoDate(now);
+  syncSchedDate();
+  renderCalendar();
+  renderDayList();
+});
+
+function renderCalendar(){
+  const y = calCursor.getFullYear(), m = calCursor.getMonth();
+  document.getElementById('calMonthLabel').textContent =
+    calCursor.toLocaleDateString(undefined,{ month:'long', year:'numeric' });
+
+  const startDow = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const todayStr = isoDate(new Date());
+  const grid = document.getElementById('calGridDays');
+  grid.innerHTML = '';
+
+  for(let i=0;i<startDow;i++){
+    const b = document.createElement('div');
+    b.className = 'cal-cell blank';
+    grid.appendChild(b);
+  }
+
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const items = schedules.filter(s=>s.date===dateStr);
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (dateStr===todayStr?' today':'') + (dateStr===calSelected?' sel':'');
+    const dots = items.slice(0,5).map(s=>`<i style="background:${schedMeta(s.type).color}"></i>`).join('');
+    cell.innerHTML = `<span class="d">${d}</span>
+      <div class="dots-row">${dots}${items.length>5?`<span class="more">+${items.length-5}</span>`:''}</div>`;
+    cell.addEventListener('click', ()=>{
+      calSelected = dateStr;
+      syncSchedDate();
+      renderCalendar();
+      renderDayList();
+    });
+    grid.appendChild(cell);
+  }
+}
+
+function renderDayList(){
+  const label = document.getElementById('calDayLabel');
+  const list = document.getElementById('calDayList');
+  const dt = new Date(calSelected + 'T00:00:00');
+  label.textContent = isNaN(dt) ? 'Select a day'
+    : dt.toLocaleDateString(undefined,{ weekday:'long', month:'short', day:'numeric' });
+
+  const items = schedules.filter(s=>s.date===calSelected);
+  if(!items.length){
+    list.innerHTML = '<li style="border:none;justify-content:center;color:var(--cream-faint);padding:18px 0;">Nothing scheduled</li>';
+    return;
+  }
+
+  list.innerHTML = items.map(s=>{
+    const meta = schedMeta(s.type);
+    const amtCls = s.type==='work' ? 'g' : 'r';
+    return `<li class="sched-item">
+      <button class="sched-check ${s.done?'on':''}" data-check="${s.id}" title="Mark done">${s.done?'✓':''}</button>
+      <div class="txn-info">
+        <div class="t ${s.done?'done':''}">${meta.icon} ${escapeHtml(s.title)}</div>
+        <div class="s">${meta.label}${s.time?' · '+s.time:''}</div>
+      </div>
+      ${s.amount?`<div class="txn-amt ${amtCls} tabular">${s.type==='work'?'+':'-'}${fmt(s.amount)}</div>`:''}
+      <button class="del-btn" data-del="${s.id}">✕</button>
+    </li>`;
+  }).join('');
+
+  list.querySelectorAll('[data-check]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const item = schedules.find(s=>s.id===b.dataset.check);
+      if(!item) return;
+      await setDoc(doc(db,'schedules', item.id), { done: !item.done }, { merge:true });
+    });
+  });
+  list.querySelectorAll('[data-del]').forEach(b=>{
+    b.addEventListener('click', ()=> deleteDoc(doc(db,'schedules', b.dataset.del)));
+  });
+}
+
+document.querySelectorAll('#schedTypeToggle button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    selectedSType = b.dataset.stype;
+    document.querySelectorAll('#schedTypeToggle button').forEach(x=> x.classList.toggle('on', x===b));
+  });
+});
+
+document.getElementById('schedForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const title = document.getElementById('sTitle').value.trim();
+  if(!title) return;
+  const amtRaw = parseFloat(document.getElementById('sAmount').value);
+  const dateVal = document.getElementById('sDate').value || calSelected;
+
+  await addDoc(collection(db,'schedules'), {
+    uid: currentUser.uid,
+    title,
+    type: selectedSType,
+    amount: amtRaw > 0 ? amtRaw : 0,
+    time: document.getElementById('sTime').value || '',
+    date: dateVal,
+    done: false,
+    createdAt: serverTimestamp()
+  });
+
+  calSelected = dateVal;
+  calCursor = new Date(dateVal + 'T00:00:00');
+  // keep the date so you can stack several entries onto the same day
+  document.getElementById('sTitle').value = '';
+  document.getElementById('sAmount').value = '';
+  document.getElementById('sTime').value = '';
+  renderCalendar();
+  renderDayList();
+});
+
+// initial date on the form = today
+syncSchedDate();
 
 /* ---------- AI assistant (Gemini free tier) ---------- */
 const chatForm = document.getElementById('chatForm');
