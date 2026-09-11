@@ -131,6 +131,8 @@ a{color:inherit;}
   transition:border-color .2s var(--ease), background .2s var(--ease);
 }
 .field input:focus{border-color:var(--accent);background:#1e1c19;}
+.field select{width:100%;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:12px 13px;border-radius:var(--radius);font-size:14px;outline:none;}
+.field select:focus{border-color:var(--accent);}
 .btn{
   width:100%;padding:13px 18px;border-radius:var(--radius);border:1px solid transparent;
   font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
@@ -298,11 +300,17 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
 .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;}
 .cal-legend span{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-dim);}
 .cal-legend i{width:7px;height:7px;border-radius:50%;display:block;}
-.sched-check{background:none;border:1px solid var(--line);color:var(--cream-faint);width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;flex-shrink:0;padding:0;}
+.sched-check{background:none;border:1px solid var(--line);color:var(--cream-faint);width:22px;height:22px;border-radius:50%;font-size:11px;line-height:1;flex-shrink:0;padding:0;transition:background .18s var(--ease),border-color .18s var(--ease),color .18s var(--ease);}
 .sched-check.on{background:var(--green-soft);border-color:var(--green);color:var(--green);}
+.sched-check:disabled{opacity:.5;cursor:wait;}
 .sched-item .t.done{text-decoration:line-through;color:var(--cream-faint);}
 #schedTypeToggle{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
 #schedTypeToggle button{padding:9px 4px;font-size:10.5px;letter-spacing:.04em;}
+.paid-chip{
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 6px;border-radius:10px;background:var(--green-soft);color:var(--green);
+  border:1px solid rgba(143,179,122,.35);margin-left:4px;vertical-align:middle;
+}
 
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;opacity:0;transition:opacity .25s var(--ease);}
 .modal-bg.active{display:flex;opacity:1;}
@@ -520,7 +528,7 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
             <span class="eyebrow">Set Monthly Budget</span>
             <form id="budgetForm" style="margin-top:14px;">
               <div class="field"><label>Category</label>
-                <select id="bCategory" style="width:100%;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:12px 13px;border-radius:var(--radius);font-size:14px;">
+                <select id="bCategory">
                   <option>Food</option><option>Transport</option><option>Housing</option><option>Utilities</option>
                   <option>Shopping</option><option>Health</option><option>Entertainment</option><option>Other</option>
                 </select>
@@ -575,6 +583,13 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
               </div>
               <div class="field"><label>What</label><input type="text" id="sTitle" placeholder="Rent, groceries, shift…" required></div>
               <div class="field"><label>Amount (optional)</label><input type="number" step="0.01" min="0" id="sAmount" placeholder="0.00"></div>
+              <div class="field" id="sCategoryField" style="display:none;">
+                <label>Expense Category</label>
+                <select id="sCategory">
+                  <option>Food</option><option>Transport</option><option>Housing</option><option>Utilities</option>
+                  <option>Shopping</option><option>Health</option><option>Entertainment</option><option>Other</option>
+                </select>
+              </div>
               <div class="field"><label>Time (optional)</label><input type="time" id="sTime"></div>
               <div class="field"><label>Date</label><input type="date" id="sDate" required></div>
               <button class="btn btn-primary" id="schedSubmitBtn" type="submit">Add to Schedule</button>
@@ -642,7 +657,7 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
       </div>
       <div class="field"><label>Amount</label><input type="number" step="0.01" min="0.01" id="fAmount" required></div>
       <div class="field"><label>Category</label>
-        <select id="fCategory" style="width:100%;background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream);padding:12px 13px;border-radius:var(--radius);font-size:14px;">
+        <select id="fCategory">
           <option>Food</option><option>Transport</option><option>Housing</option><option>Utilities</option>
           <option>Shopping</option><option>Health</option><option>Entertainment</option><option>Salary</option>
           <option>Freelance</option><option>Investment</option><option>Other</option>
@@ -1277,13 +1292,15 @@ function renderDayList(){
   list.innerHTML = items.map(s=>{
     const meta = schedMeta(s.type);
     const amtCls = s.type==='work' ? 'g' : 'r';
+    const amtSign = s.type==='work' ? '+' : '-';
+    const isPaid = !!s.linkedTxnId;
     return `<li class="sched-item">
-      <button class="sched-check ${s.done?'on':''}" data-check="${s.id}" title="Mark done">${s.done?'✓':''}</button>
+      <button class="sched-check ${s.done?'on':''}" data-check="${s.id}" title="${s.done?'Mark as not done':'Mark as done'}">${s.done?'✓':''}</button>
       <div class="txn-info">
-        <div class="t ${s.done?'done':''}">${meta.icon} ${escapeHtml(s.title)}</div>
+        <div class="t ${s.done?'done':''}">${meta.icon} ${escapeHtml(s.title)}${isPaid?' <span class="paid-chip">Paid</span>':''}</div>
         <div class="s">${meta.label}${s.time?' · '+s.time:''}${s.amount?' · '+fmt(s.amount):''}</div>
       </div>
-      ${s.amount?`<div class="txn-amt ${amtCls} tabular">${s.type==='work'?'+':'-'}${fmt(s.amount)}</div>`:''}
+      ${s.amount?`<div class="txn-amt ${amtCls} tabular">${amtSign}${fmt(s.amount)}</div>`:''}
       <button class="del-btn" data-del="${s.id}">✕</button>
     </li>`;
   }).join('');
@@ -1292,22 +1309,90 @@ function renderDayList(){
     b.addEventListener('click', async ()=>{
       const item = schedules.find(s=>s.id===b.dataset.check);
       if(!item) return;
-      try{ await setDoc(doc(db,'schedules', item.id), { done: !item.done }, { merge:true }); }
-      catch(err){ toastError('Update failed: ' + (err.code || err.message)); }
+      b.disabled = true;
+      try{
+        await toggleScheduleDone(item);
+      }catch(err){
+        console.error(err);
+        toastError('Could not update: ' + (err.code || err.message));
+      }finally{
+        b.disabled = false;
+      }
     });
   });
   list.querySelectorAll('[data-del]').forEach(b=>{
     b.addEventListener('click', async ()=>{
-      try{ await deleteDoc(doc(db,'schedules', b.dataset.del)); toast('Removed'); }
-      catch(err){ toastError('Delete failed: ' + (err.code || err.message)); }
+      const item = schedules.find(s=>s.id===b.dataset.del);
+      try{
+        // If this schedule recorded a payment, remove the linked transaction too
+        if(item && item.linkedTxnId){
+          try { await deleteDoc(doc(db,'transactions', item.linkedTxnId)); } catch(e){ /* already gone */ }
+        }
+        await deleteDoc(doc(db,'schedules', b.dataset.del));
+        toast('Removed');
+      }catch(err){ toastError('Delete failed: ' + (err.code || err.message)); }
     });
   });
+}
+
+/* ---------------------------------------------------------------------
+   Toggle done. When marking a PAY or BUY item as done, this:
+   - Creates an expense transaction (title, amount, date, category)
+   - Saves the new transaction's id on the schedule as `linkedTxnId`
+   - The dashboard balance auto-updates via the live transactions listener
+   When unchecking, it deletes the linked transaction and clears the link.
+   When deleting a schedule, the caller also removes any linked transaction.
+   --------------------------------------------------------------------- */
+async function toggleScheduleDone(item){
+  const newDone = !item.done;
+  const isMoney = (item.type === 'pay' || item.type === 'buy') && item.amount > 0;
+
+  // 1) Marking as done and it has money → create the expense transaction
+  if (newDone && isMoney && !item.linkedTxnId){
+    const category = item.category || (item.type === 'pay' ? 'Other' : 'Shopping');
+    const txnRef = await addDoc(collection(db,'transactions'), {
+      uid: currentUser.uid,
+      amount: item.amount,
+      type: 'expense',
+      category,
+      note: item.title,
+      date: item.date,
+      createdAt: serverTimestamp()
+    });
+    await setDoc(doc(db,'schedules', item.id), {
+      done: true,
+      linkedTxnId: txnRef.id
+    }, { merge: true });
+    toast(`Paid · -${fmt(item.amount)}`);
+    return;
+  }
+
+  // 2) Unmarking a paid item → reverse the expense
+  if (!newDone && item.linkedTxnId){
+    try { await deleteDoc(doc(db,'transactions', item.linkedTxnId)); } catch(e){ /* may already be gone */ }
+    await setDoc(doc(db,'schedules', item.id), {
+      done: false,
+      linkedTxnId: null
+    }, { merge: true });
+    toast('Payment reversed');
+    return;
+  }
+
+  // 3) Plain toggle (no money, or item already linked)
+  await setDoc(doc(db,'schedules', item.id), { done: newDone }, { merge: true });
 }
 
 document.querySelectorAll('#schedTypeToggle button').forEach(b=>{
   b.addEventListener('click', ()=>{
     selectedSType = b.dataset.stype;
     document.querySelectorAll('#schedTypeToggle button').forEach(x=> x.classList.toggle('on', x===b));
+    // Show the expense category picker only for pay/buy
+    const catField = document.getElementById('sCategoryField');
+    const showCat = (selectedSType === 'pay' || selectedSType === 'buy');
+    catField.style.display = showCat ? 'block' : 'none';
+    if(showCat){
+      document.getElementById('sCategory').value = selectedSType === 'pay' ? 'Other' : 'Shopping';
+    }
   });
 });
 
@@ -1318,6 +1403,7 @@ document.getElementById('schedForm').addEventListener('submit', async (e)=>{
   if(!title){ toastError('Please enter what you want to schedule.'); return; }
   const amtRaw = parseFloat(document.getElementById('sAmount').value);
   const dateVal = document.getElementById('sDate').value || calSelected;
+  const includeCat = (selectedSType === 'pay' || selectedSType === 'buy');
 
   const btn = document.getElementById('schedSubmitBtn');
   const oldLabel = btn.textContent;
@@ -1330,9 +1416,11 @@ document.getElementById('schedForm').addEventListener('submit', async (e)=>{
       title,
       type: selectedSType,
       amount: amtRaw > 0 ? amtRaw : 0,
+      category: includeCat ? document.getElementById('sCategory').value : '',
       time: document.getElementById('sTime').value || '',
       date: dateVal,
       done: false,
+      linkedTxnId: null,
       createdAt: serverTimestamp()
     });
 
