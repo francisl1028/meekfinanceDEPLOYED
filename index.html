@@ -256,18 +256,28 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
 .suggest-row button{background:var(--bg-elevated);border:1px solid var(--line);color:var(--cream-dim);font-size:11.5px;padding:7px 11px;border-radius:20px;}
 .suggest-row button:hover{color:var(--cream);border-color:var(--cream-dim);}
 
+/* ---------- budgets ---------- */
 .budget-row{margin-bottom:18px;}
 .budget-row:last-child{margin-bottom:0;}
-.budget-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;}
+.budget-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;gap:8px;}
 .budget-head .cat{font-size:13.5px;font-weight:600;}
 .budget-head .amt{font-family:'Space Mono',monospace;font-size:12px;color:var(--cream-dim);}
 .budget-bar-bg{height:7px;background:var(--bg-elevated);border-radius:20px;overflow:hidden;}
-.budget-bar-fill{height:100%;border-radius:20px;transition:width .6s var(--ease);}
+.budget-bar-fill{height:100%;border-radius:20px;transition:width .35s var(--ease);}
 .budget-bar-fill.ok{background:var(--green);}
 .budget-bar-fill.warn{background:#e0b878;}
 .budget-bar-fill.over{background:var(--red);}
-.budget-note{font-size:11px;color:var(--cream-faint);margin-top:5px;}
+.budget-note{font-size:11px;color:var(--cream-faint);margin-top:5px;display:flex;justify-content:space-between;gap:8px;}
 .budget-note.over{color:var(--red);}
+.budget-note .live{
+  font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--green);display:inline-flex;align-items:center;gap:4px;opacity:.85;
+}
+.budget-note .live::before{
+  content:'';width:5px;height:5px;border-radius:50%;background:var(--green);
+  animation:pulse 1.8s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.4;}50%{opacity:1;}}
 
 .settings-card{max-width:520px;}
 .hint{font-size:11.5px;color:var(--cream-faint);margin-top:6px;line-height:1.5;}
@@ -592,10 +602,11 @@ table.txn-table tr{animation:fadeUp .4s var(--ease) both;}
               </div>
               <div class="field"><label>Monthly Limit</label><input type="number" step="0.01" min="0.01" id="bAmount" required></div>
               <button class="chip-btn" type="submit">Save Budget</button>
+              <p class="hint" style="margin-top:12px;">Pick a category — if a budget already exists, its amount appears here so you can update it.</p>
             </form>
           </div>
           <div class="card">
-            <span class="eyebrow">This Month's Progress</span>
+            <span class="eyebrow">This Month's Progress · <span id="budgetMonthLabel">—</span></span>
             <div id="budgetList" style="margin-top:16px;"></div>
             <div class="empty-state" id="budgetEmpty" style="display:none;">
               <div class="glyph">▦</div>No budgets set yet. Add one on the left.
@@ -935,8 +946,12 @@ if(firebaseReady){
   });
 }
 
-/* ---------- budgets ---------- */
+/* =====================================================================
+   BUDGETS — realtime
+   Stored in a single doc budgets/{uid}.limits = { Food: 500, Transport: 200, ... }
+   ===================================================================== */
 let budgets = {};
+
 function listenBudgets(){
   unsubBudgets = onSnapshot(doc(db,'budgets',currentUser.uid), (snap)=>{
     budgets = snap.exists() ? (snap.data().limits || {}) : {};
@@ -948,41 +963,74 @@ document.getElementById('budgetForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const cat = document.getElementById('bCategory').value;
   const amt = parseFloat(document.getElementById('bAmount').value);
-  if(!amt || amt<=0) return;
-  budgets[cat] = amt;
+  if(!amt || amt<=0){ toastError('Enter an amount above 0.'); return; }
+
+  // Optimistic local update — UI reflects instantly, even before Firestore confirms
+  budgets = { ...budgets, [cat]: amt };
+  renderBudgets();
+
   try{
     await setDoc(doc(db,'budgets',currentUser.uid), { limits: budgets }, {merge:true});
-    document.getElementById('budgetForm').reset();
-    toast('Budget saved');
+    document.getElementById('bAmount').value = '';
+    toast(`Budget saved · ${cat} ${fmt(amt)}`);
   }catch(err){
     console.error(err);
     toastError('Could not save budget: ' + (err.code || err.message));
   }
 });
 
+// When the user picks a category, prefill the amount input with the existing budget (if any)
+document.getElementById('bCategory').addEventListener('change', ()=>{
+  const cat = document.getElementById('bCategory').value;
+  const el = document.getElementById('bAmount');
+  el.value = (budgets[cat] !== undefined) ? budgets[cat] : '';
+});
+
+function currentMonthKey(){
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+}
+
 function renderBudgets(){
   const list = document.getElementById('budgetList');
   const cats = Object.keys(budgets);
+
+  // Update the month label in the header
+  document.getElementById('budgetMonthLabel').textContent =
+    new Date().toLocaleDateString(undefined, { month:'long', year:'numeric' });
+
   document.getElementById('budgetEmpty').style.display = cats.length ? 'none' : 'block';
   if(!cats.length){ list.innerHTML=''; return; }
 
-  const now = new Date();
-  const ym = now.toISOString().slice(0,7);
+  const ym = currentMonthKey();
   const spentByCat = {};
-  transactions.filter(t=>t.type==='expense' && t.date.startsWith(ym)).forEach(t=>{
-    spentByCat[t.category] = (spentByCat[t.category]||0) + t.amount;
-  });
+  const countByCat = {};
+  transactions
+    .filter(t => t.type==='expense' && t.date && t.date.startsWith(ym))
+    .forEach(t => {
+      spentByCat[t.category] = (spentByCat[t.category]||0) + t.amount;
+      countByCat[t.category]  = (countByCat[t.category]||0) + 1;
+    });
 
   list.innerHTML = cats.map(cat=>{
     const limit = budgets[cat];
     const spent = spentByCat[cat] || 0;
+    const count = countByCat[cat] || 0;
     const pct = Math.min(100, (spent/limit)*100);
     const over = spent > limit;
     const cls = over ? 'over' : (pct>=80 ? 'warn' : 'ok');
+    const remain = limit - spent;
+    const note = over
+      ? `Over by ${fmt(Math.abs(remain))}`
+      : `${fmt(remain)} remaining`;
+    const txnNote = count ? `${count} txn${count>1?'s':''} this month` : 'No spend yet this month';
     return `<div class="budget-row">
       <div class="budget-head"><span class="cat">${cat}</span><span class="amt tabular">${fmt(spent)} / ${fmt(limit)}</span></div>
       <div class="budget-bar-bg"><div class="budget-bar-fill ${cls}" style="width:${pct}%"></div></div>
-      <div class="budget-note ${over?'over':''}">${over ? `Over budget by ${fmt(spent-limit)}` : `${(100-pct).toFixed(0)}% remaining`}</div>
+      <div class="budget-note ${over?'over':''}">
+        <span>${note} · ${txnNote}</span>
+        <span class="live">Live</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -1041,7 +1089,7 @@ function listenTransactions(){
   }, (err)=> console.error('transactions listen error', err));
 }
 
-/* ---------- navigation ---------- */
+/* ---------- navigation — force fresh render on tab change ---------- */
 const navBtns = document.querySelectorAll('.navbtn');
 const views = document.querySelectorAll('.view');
 const titles = { dashboard:['OVERVIEW','Dashboard'], transactions:['LEDGER','Transactions'], budgets:['LIMITS','Budgets'], calendar:['PLANNER','Calendar'], assistant:['MEEK AI','Assistant'], settings:['CONFIGURE','Settings'] };
@@ -1055,7 +1103,12 @@ navBtns.forEach(btn=>{
     document.getElementById('viewEyebrow').textContent = titles[v][0];
     document.getElementById('viewTitle').textContent = titles[v][1];
     document.getElementById('sidebar').classList.remove('open');
+
+    // Force fresh render for the view we're entering
     if(v==='calendar'){ renderCalendar(); renderDayList(); }
+    else if(v==='budgets'){ renderBudgets(); }
+    else if(v==='dashboard'){ renderDashboard(); }
+    else if(v==='transactions'){ populateCategoryFilter(); renderTable(); }
   });
 });
 document.getElementById('menuBtn').addEventListener('click', ()=> document.getElementById('sidebar').classList.toggle('open'));
@@ -1092,6 +1145,13 @@ txnForm.addEventListener('submit', async (e)=>{
     date: document.getElementById('fDate').value,
     createdAt: serverTimestamp()
   };
+
+  // Optimistic local insert so budget & dashboard reflect instantly
+  const optimisticId = '__pending__' + Date.now();
+  transactions = [{ id: optimisticId, ...payload }, ...transactions];
+  transactions.sort((a,b)=> new Date(b.date) - new Date(a.date));
+  renderAll();
+
   try{
     await addDoc(collection(db,'transactions'), payload);
     txnForm.reset();
@@ -1100,6 +1160,9 @@ txnForm.addEventListener('submit', async (e)=>{
     toast('Transaction added');
   }catch(err){
     console.error(err);
+    // roll back the optimistic entry
+    transactions = transactions.filter(t => t.id !== optimisticId);
+    renderAll();
     toastError('Could not add transaction: ' + (err.code || err.message));
   }
 });
@@ -1257,8 +1320,16 @@ function renderTable(){
   });
   body.querySelectorAll('.del-btn').forEach(b=>{
     b.addEventListener('click', async ()=>{
-      try{ await deleteDoc(doc(db,'transactions', b.dataset.id)); }
-      catch(err){ toastError('Delete failed: ' + (err.code || err.message)); }
+      const id = b.dataset.id;
+      const snapshot = transactions.slice();
+      transactions = transactions.filter(t => t.id !== id);
+      renderAll();
+      try{ await deleteDoc(doc(db,'transactions', id)); }
+      catch(err){
+        transactions = snapshot;
+        renderAll();
+        toastError('Delete failed: ' + (err.code || err.message));
+      }
     });
   });
 }
@@ -1389,9 +1460,8 @@ function renderDayList(){
       const item = schedules.find(s=>s.id===b.dataset.check);
       if(!item) return;
       b.disabled = true;
-      try{
-        await toggleScheduleDone(item);
-      }catch(err){
+      try{ await toggleScheduleDone(item); }
+      catch(err){
         console.error(err);
         toastError('Could not update: ' + (err.code || err.message));
       }finally{
@@ -1403,7 +1473,6 @@ function renderDayList(){
     b.addEventListener('click', async ()=>{
       const item = schedules.find(s=>s.id===b.dataset.del);
       try{
-        // If this schedule recorded a payment, remove the linked transaction too
         if(item && item.linkedTxnId){
           try { await deleteDoc(doc(db,'transactions', item.linkedTxnId)); } catch(e){ /* already gone */ }
         }
@@ -1414,28 +1483,24 @@ function renderDayList(){
   });
 }
 
-/* ---------------------------------------------------------------------
-   Toggle done. When marking a PAY or BUY item as done, this:
-   - Creates an expense transaction (title, amount, date, category)
-   - Saves the new transaction's id on the schedule as `linkedTxnId`
-   - The dashboard balance auto-updates via the live transactions listener
-   When unchecking, it deletes the linked transaction and clears the link.
-   When deleting a schedule, the caller also removes any linked transaction.
-   --------------------------------------------------------------------- */
+/* Toggle done — Pay/Buy with an amount creates an expense transaction.
+   Uses TODAY's date if the schedule is in the future (so the current month's budget reflects it). */
 async function toggleScheduleDone(item){
   const newDone = !item.done;
   const isMoney = (item.type === 'pay' || item.type === 'buy') && item.amount > 0;
+  const todayStr = isoDate(new Date());
 
-  // 1) Marking as done and it has money → create the expense transaction
   if (newDone && isMoney && !item.linkedTxnId){
     const category = item.category || (item.type === 'pay' ? 'Other' : 'Shopping');
+    const txnDate = item.date > todayStr ? todayStr : item.date;  // future → use today
+
     const txnRef = await addDoc(collection(db,'transactions'), {
       uid: currentUser.uid,
       amount: item.amount,
       type: 'expense',
       category,
       note: item.title,
-      date: item.date,
+      date: txnDate,
       createdAt: serverTimestamp()
     });
     await setDoc(doc(db,'schedules', item.id), {
@@ -1446,7 +1511,6 @@ async function toggleScheduleDone(item){
     return;
   }
 
-  // 2) Unmarking a paid item → reverse the expense
   if (!newDone && item.linkedTxnId){
     try { await deleteDoc(doc(db,'transactions', item.linkedTxnId)); } catch(e){ /* may already be gone */ }
     await setDoc(doc(db,'schedules', item.id), {
@@ -1457,7 +1521,6 @@ async function toggleScheduleDone(item){
     return;
   }
 
-  // 3) Plain toggle (no money, or item already linked)
   await setDoc(doc(db,'schedules', item.id), { done: newDone }, { merge: true });
 }
 
@@ -1465,7 +1528,6 @@ document.querySelectorAll('#schedTypeToggle button').forEach(b=>{
   b.addEventListener('click', ()=>{
     selectedSType = b.dataset.stype;
     document.querySelectorAll('#schedTypeToggle button').forEach(x=> x.classList.toggle('on', x===b));
-    // Show the expense category picker only for pay/buy
     const catField = document.getElementById('sCategoryField');
     const showCat = (selectedSType === 'pay' || selectedSType === 'buy');
     catField.style.display = showCat ? 'block' : 'none';
@@ -1676,11 +1738,17 @@ async function askMeek(question){
   const recentSummary = transactions.slice(0,25).map(t=>`${t.date} | ${t.type} | ${t.category} | ${t.amount} | ${t.note||''}`).join('\n');
   const upcoming = schedules.filter(s=>!s.done && s.date >= isoDate(new Date())).slice(0,15)
     .map(s=>`${s.date} ${s.time||''} | ${s.type} | ${s.title} | ${s.amount||0}`).join('\n');
+  const budgetSummary = Object.entries(budgets).map(([c,l])=>{
+    const spent = byCat[c]||0;
+    return `${c}: spent ${spent} of ${l} (${spent>l?'OVER':((l-spent)).toFixed(2)+' left'})`;
+  }).join('\n') || 'No budgets set.';
 
   const systemPrompt = `You are MEEK, a calm, direct personal finance assistant embedded in the user's own finance app.
 Currency symbol: ${userSettings.currency||'₱'}.
 Total income: ${income}. Total expenses: ${expense}. Net balance: ${income-expense}.
 Spending by category: ${JSON.stringify(byCat)}.
+Current month budgets:
+${budgetSummary}
 Recent transactions (date | type | category | amount | note):
 ${recentSummary || 'No transactions yet.'}
 
